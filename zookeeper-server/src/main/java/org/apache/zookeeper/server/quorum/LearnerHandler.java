@@ -364,6 +364,10 @@ public class LearnerHandler extends ZooKeeperThread {
      * This thread will receive packets from the peer and process them and
      * also listen to new connections from new peers.
      */
+    /**
+     * 逻辑:
+     *
+     */
     @Override
     public void run() {
         try {

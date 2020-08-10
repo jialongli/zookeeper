@@ -105,6 +105,17 @@ public class QuorumPeerMain {
         System.exit(0);
     }
 
+    /**
+     * 主要逻辑:
+     * 1.读取配置
+     * 2.判断配置
+     *    2.1集群
+     *    2.2单机
+     * @param args
+     * @throws ConfigException
+     * @throws IOException
+     * @throws AdminServerException
+     */
     protected void initializeAndRun(String[] args)
         throws ConfigException, IOException, AdminServerException
     {
@@ -129,6 +140,14 @@ public class QuorumPeerMain {
         }
     }
 
+
+    /**
+     * 配置启动
+     *
+     * @param config
+     * @throws IOException
+     * @throws AdminServerException
+     */
     public void runFromConfig(QuorumPeerConfig config)
             throws IOException, AdminServerException
     {

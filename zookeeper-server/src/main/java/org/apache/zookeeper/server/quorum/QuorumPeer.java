@@ -879,6 +879,13 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         return quorumStats;
     }
 
+    /**
+     * 启动的主要逻辑
+     * 1.读取磁盘数据,loadDataBase
+     *    注意内存数据,快照,事务日志关系. 1.1读取快照  1.2读取事务日志 快照是隔断数据打的.比如10000条打一次,所以可能快照不是最新,所以需要读取事务日志
+     * 2.建立socket监听,就是监听client的请求.此时就可以建立连接了,不过由于集群未全部启动成功,你连接上来也会close掉.
+     * 3.
+     */
     @Override
     public synchronized void start() {
         if (!getView().containsKey(myid)) {
@@ -1174,6 +1181,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                 case LOOKING:
                     LOG.info("LOOKING");
 
+                    //只读逻辑
                     if (Boolean.getBoolean("readonlymode.enabled")) {
                         LOG.info("Attempting to start ReadOnlyZooKeeperServer");
 
@@ -1220,12 +1228,14 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                             roZk.shutdown();
                         }
                     } else {
+                        //开始选举.
                         try {
                            reconfigFlagClear();
                             if (shuttingDownLE) {
                                shuttingDownLE = false;
                                startLeaderElection();
                                }
+                               //具体选举逻辑,最后返回当前自己的角色.之后就会break,进入到leader或者follower逻辑
                             setCurrentVote(makeLEStrategy().lookForLeader());
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception", e);
@@ -1247,6 +1257,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                     }
                     break;
                 case FOLLOWING:
+                    //选举结束.进入到follower角色
                     try {
                        LOG.info("FOLLOWING");
                         setFollower(makeFollower(logFactory));
@@ -1260,6 +1271,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                     }
                     break;
                 case LEADING:
+                    //选举结束.进入到leader角色
                     LOG.info("LEADING");
                     try {
                         setLeader(makeLeader(logFactory));

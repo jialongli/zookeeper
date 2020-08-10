@@ -457,6 +457,11 @@ public class Leader {
      * @throws IOException
      * @throws InterruptedException
      */
+    /**
+     * leader启动的逻辑
+     * 1.
+     *
+     */
     void lead() throws IOException, InterruptedException {
         self.end_fle = Time.currentElapsedTime();
         long electionTimeTaken = self.end_fle - self.start_fle;
