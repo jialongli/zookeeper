@@ -95,7 +95,7 @@ public class FinalRequestProcessor implements RequestProcessor {
     }
 
     /**
-     * 刷新到磁盘处理类,这不是一个runnable,而是上一个处理类直接调用此方法
+     * 将已经提交的数据应用到内存的dataTree.
      * @param request
      */
     public void processRequest(Request request) {

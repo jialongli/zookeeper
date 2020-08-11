@@ -847,6 +847,16 @@ public class Leader {
      * @param sid, the id of the server that sent the ack
      * @param followerAddr
      */
+    /**
+     * 两种情况会走这里
+     * 1.follower发送ack
+     * 2.自身的ackRequestProcessor调用
+     * 逻辑很简单:
+     *
+     * @param sid
+     * @param zxid
+     * @param followerAddr
+     */
     synchronized public void processAck(long sid, long zxid, SocketAddress followerAddr) {        
         if (!allowedToCommit) return; // last op committed was a leader change - from now on 
                                      // the new leader should commit        
@@ -991,6 +1001,7 @@ public class Leader {
      */
     void sendPacket(QuorumPacket qp) {
         synchronized (forwardingFollowers) {
+            //遍历所有Follower,将请求入队
             for (LearnerHandler f : forwardingFollowers) {
                 f.queuePacket(qp);
             }
@@ -1084,6 +1095,12 @@ public class Leader {
      * @param request
      * @return the proposal that is queued to send to all the members
      */
+    /**
+     * 发送事务给其他follower
+     * @param request
+     * @return
+     * @throws XidRolloverException
+     */
     public Proposal propose(Request request) throws XidRolloverException {
         /**
          * Address the rollover issue. All lower 32bits set indicate a new leader
@@ -1121,6 +1138,7 @@ public class Leader {
 
             lastProposed = p.packet.getZxid();
             outstandingProposals.put(lastProposed, p);
+            //====主要逻辑,发送事务========
             sendPacket(pp);
         }
         return p;

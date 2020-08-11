@@ -62,6 +62,11 @@ public class Follower extends Learner{
      *
      * @throws InterruptedException
      */
+    /**
+     * Follower启动逻辑
+     * 1.
+     * @throws InterruptedException
+     */
     void followLeader() throws InterruptedException {
         self.end_fle = Time.currentElapsedTime();
         long electionTimeTaken = self.end_fle - self.start_fle;
@@ -90,6 +95,7 @@ public class Follower extends Learner{
                 QuorumPacket qp = new QuorumPacket();
                 while (this.isRunning()) {
                     readPacket(qp);
+                    //读取leader请求后,进行处理
                     processPacket(qp);
                 }
             } catch (Exception e) {
@@ -113,12 +119,20 @@ public class Follower extends Learner{
      * @param qp
      * @throws IOException
      */
+    /**
+     * follower启动后不断监听leader发过来的packet,然后发送进行处理,此处是核心梳理类
+     *
+     *
+     * @param qp
+     * @throws Exception
+     */
     protected void processPacket(QuorumPacket qp) throws Exception{
         switch (qp.getType()) {
         case Leader.PING:            
             ping(qp);            
             break;
-        case Leader.PROPOSAL:           
+        case Leader.PROPOSAL:
+            //事务的处理,leader的proposalProcessor会发送事务给自身和follower,
             TxnHeader hdr = new TxnHeader();
             Record txn = SerializeUtils.deserializeTxn(qp.getData(), hdr);
             if (hdr.getZxid() != lastQueued + 1) {
@@ -134,7 +148,8 @@ public class Follower extends Learner{
                QuorumVerifier qv = self.configFromString(new String(setDataTxn.getData()));
                self.setLastSeenQuorumVerifier(qv, true);                               
             }
-            
+
+            //==========核心逻辑===========
             fzk.logRequest(hdr, txn);
             break;
         case Leader.COMMIT:

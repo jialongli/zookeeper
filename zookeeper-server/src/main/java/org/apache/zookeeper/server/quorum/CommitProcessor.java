@@ -65,6 +65,12 @@ import org.apache.zookeeper.server.ZooKeeperServerListener;
  * The current implementation solves the third constraint by simply allowing no
  * read requests to be processed in parallel with write requests.
  */
+
+/**
+ *
+ *  将已经完成本机submit的request和已经在集群中达成commit（即收到过半follower的proposal ack）的request匹配，
+ *  并将匹配后的request交给nextProcessor（对于leader来说是ToBeAppliedRequestProcessor）处理。
+ */
 public class CommitProcessor extends ZooKeeperCriticalThread implements
         RequestProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(CommitProcessor.class);
@@ -153,12 +159,20 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
         }
     }
 
+    /**
+     * 很复杂
+     * 主要是用来把请求交给workPool处理的
+     */
     @Override
     public void run() {
         Request request;
         try {
             while (!stopped) {
                 synchronized(this) {
+                    //=====这里是什么时候会阻塞等待?=====
+
+                    //任务为空 || nextPending不为空(即有提交的任务,还未处理) || currentlyCommitting不为空,正在处理一个请求
+                    //
                     while (
                         !stopped &&
                         ((queuedRequests.isEmpty() || isWaitingForCommit() || isProcessingCommit()) &&
@@ -167,17 +181,24 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                     }
                 }
 
+
+                //===提交任务给workPool====
                 /*
                  * Processing queuedRequests: Process the next requests until we
                  * find one for which we need to wait for a commit. We cannot
                  * process a read request while we are processing write request.
                  */
+                //1.有等待提交的写任务(nextPending!=0)
+                //2.正在处理一个写请求(currentlyCommitting!=null),那什么时候释放呢,是在workPool处理之后,会置为null
+                //3.
                 while (!stopped && !isWaitingForCommit() &&
                        !isProcessingCommit() &&
                        (request = queuedRequests.poll()) != null) {
+                    //如果需要提交,那么他是一个写请求,需要设置到nextPending
                     if (needCommit(request)) {
                         nextPending.set(request);
                     } else {
+                        //如果是读请求,直接workPool进行处理
                         sendToNextProcessor(request);
                     }
                 }
@@ -187,6 +208,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                  * came in for the pending request. We can only commit a
                  * request when there is no other request being processed.
                  */
+                //如果是写请求,会跳出while,走到这里
                 processCommitted();
             }
         } catch (Throwable e) {
@@ -199,9 +221,16 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
      * Separated this method from the main run loop
      * for test purposes (ZOOKEEPER-1863)
      */
+
+    /**
+     * 处理写请求逻辑=======
+     * 1.
+     */
     protected void processCommitted() {
         Request request;
 
+        //如果还有读请求在处理,就不处理,等处理完再说.设置完nextPending,再入口那里,就会wait住的
+        //直到====处理结束,查看下committedRequests不为空.
         if (!stopped && !isProcessingRequest() &&
                 (committedRequests.peek() != null)) {
 
@@ -213,6 +242,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
             if ( !isWaitingForCommit() && !queuedRequests.isEmpty()) {
                 return;
             }
+            //1.从已提交请求队列取出来一个
             request = committedRequests.poll();
 
             /*
@@ -221,6 +251,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
              * use nextPending because it has the cnxn member set
              * properly.
              */
+            //2.取出nextPending的请求.
             Request pending = nextPending.get();
             if (pending != null &&
                 pending.sessionId == request.sessionId &&
@@ -267,6 +298,10 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
     /**
      * Schedule final request processing; if a worker thread pool is not being
      * used, processing is done directly by this thread.
+     */
+    /**
+     * workPool处理读请求.注意每个session会进入到不同的workPool,这样保证了session下的请求的顺序性
+     * @param request
      */
     private void sendToNextProcessor(Request request) {
         numRequestsProcessing.incrementAndGet();

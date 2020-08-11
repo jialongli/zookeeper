@@ -80,6 +80,11 @@ public class FollowerZooKeeperServer extends LearnerZooKeeperServer {
 
     LinkedBlockingQueue<Request> pendingTxns = new LinkedBlockingQueue<Request>();
 
+    /**
+     * 处理proposal逻辑.调用syncProcessor
+     * @param hdr
+     * @param txn
+     */
     public void logRequest(TxnHeader hdr, Record txn) {
         Request request = new Request(hdr.getClientId(), hdr.getCxid(), hdr.getType(), hdr, txn, hdr.getZxid());
         if ((request.zxid & 0xffffffffL) != 0) {
@@ -93,6 +98,15 @@ public class FollowerZooKeeperServer extends LearnerZooKeeperServer {
      * which matches up the zxid from the COMMIT with (hopefully) the head of
      * the pendingTxns queue and hands it to the commitProcessor to commit.
      * @param zxid - must correspond to the head of pendingTxns if it exists
+     */
+    /**
+     * 当收到leader发送的COMMIT请求
+     * 1.看下当前在处理de pendintTxns是否为空,要是空,说明可能自己属于少数的那个.没有收到proposal,返回.
+     * 2.如果拿到正在处理的事务的txid和发过来的不一样,说明是数据不一致.我就直接退出了..太暴力了
+     * 3.pendingTxns.remove,并且调用commitProcessor.这里就和Leader的逻辑一样了
+     * ....
+     *
+     * @param zxid
      */
     public void commit(long zxid) {
         if (pendingTxns.size() == 0) {

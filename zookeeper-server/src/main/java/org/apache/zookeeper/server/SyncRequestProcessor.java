@@ -178,10 +178,13 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
         zks.getZKDatabase().commit();
         while (!toFlush.isEmpty()) {
             Request i = toFlush.remove();
+            //注意这里,如果是单机模式,SyncRequestProcessor.next---->FinalRequestProcessor(返回结果给客户端)
+            //如果是集群模式,那么就是调用AckRequestProcessor.
             if (nextProcessor != null) {
                 nextProcessor.processRequest(i);
             }
         }
+        //
         if (nextProcessor != null && nextProcessor instanceof Flushable) {
             ((Flushable)nextProcessor).flush();
         }

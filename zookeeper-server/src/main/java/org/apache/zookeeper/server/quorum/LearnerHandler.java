@@ -58,6 +58,13 @@ import org.slf4j.LoggerFactory;
  * learner. All communication with a learner is handled by this
  * class.
  */
+
+/**
+ 看注释,leader会为每个leaner(follower)建立一个实例,用于接收follower发送过来的packet
+
+ 1.发送pakect给follower(例如proposal)
+ 2.接收follower的packet(例如ack)
+ */
 public class LearnerHandler extends ZooKeeperThread {
     private static final Logger LOG = LoggerFactory.getLogger(LearnerHandler.class);
 
@@ -92,6 +99,9 @@ public class LearnerHandler extends ZooKeeperThread {
 
     /**
      * The packets to be sent to the learner
+     */
+    /**
+     * =========发送事务给Follower=========
      */
     final LinkedBlockingQueue<QuorumPacket> queuedPackets =
         new LinkedBlockingQueue<QuorumPacket>();
@@ -497,6 +507,7 @@ public class LearnerHandler extends ZooKeeperThread {
             }
             bufferedOutput.flush();
 
+            //=========从队列中读取packet,并发送.每一个Follower都有一个learnerHandler的线程.=========
             // Start thread that blast packets in the queue to learner
             startSendingPackets();
             
@@ -538,6 +549,7 @@ public class LearnerHandler extends ZooKeeperThread {
             LOG.debug("Sending UPTODATE message to " + sid);      
             queuedPackets.add(new QuorumPacket(Leader.UPTODATE, -1, null, null));
 
+            //2.接收follower发送的packet
             while (true) {
                 qp = new QuorumPacket();
                 ia.readRecord(qp, "packet");
@@ -558,6 +570,7 @@ public class LearnerHandler extends ZooKeeperThread {
                 int type;
 
                 switch (qp.getType()) {
+                    //===========当收到follower传过来的ack后,调用leader.processAck
                 case Leader.ACK:
                     if (this.learnerType == LearnerType.OBSERVER) {
                         if (LOG.isDebugEnabled()) {
